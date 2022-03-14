@@ -1,0 +1,102 @@
+version: '3.8'
+x-aws-vpc: vpc-08c84f4fec766b252
+
+services:
+  ayom-api:
+    image: 854122388886.dkr.ecr.us-east-1.amazonaws.com/ayom-api:latest
+    env_file:
+      - .env
+    environment:
+      RAILS_SERVE_STATIC_FILES: 'TRUE'
+      DATABASE_HOST: ayom-v2.cbvxdjtbxe6h.us-east-1.rds.amazonaws.com
+      AWS_XRAY_DAEMON_ADDRESS: xray:2000
+      REDIS_URL: redis:6379
+      RAILS_LOG_TO_STDOUT: true
+    ports:
+      - 80:80
+    volumes:
+      - ayom:/home/ayom-media/storage
+
+    logging:
+      options:
+        awslogs-group: ayom
+        awslogs-region: us-east-1
+
+    deploy:
+      x-aws-autoscaling:
+        min: 0
+        max: 2
+        cpu: 90
+
+    depends_on:
+      - redis
+
+    networks:
+      - main
+
+  ayom-worker:
+    image: 854122388886.dkr.ecr.us-east-1.amazonaws.com/ayom-api:latest
+    env_file:
+      - .env
+    environment:
+      RAILS_SERVE_STATIC_FILES: 'TRUE'
+      DATABASE_HOST: ayom-v2.cbvxdjtbxe6h.us-east-1.rds.amazonaws.com
+      AWS_XRAY_DAEMON_ADDRESS: xray:2000
+      REDIS_URL: redis:6379
+      RAILS_LOG_TO_STDOUT: true
+    volumes:
+      - ayom:/home/ayom-media/storage
+    command: bundle exec sidekiq -q default,1
+    depends_on:
+      - redis
+    networks:
+      - main
+
+    logging:
+      options:
+        awslogs-group: ayom
+        awslogs-region: us-east-1
+
+    deploy:
+      x-aws-autoscaling:
+        min: 0
+        max: 1
+        cpu: 90
+
+  redis:
+    image: redis:latest
+    volumes:
+      - redis:/data
+    networks:
+      - main
+
+  xray:
+    image: amazon/aws-xray-daemon:3.x
+    env_file:
+      - .env
+    ports:
+      - 2000:2000
+    networks:
+      - main
+
+volumes:
+  ayom:
+    external: true
+    name: fs-0d3787cde5b7535f6
+  redis:
+    external: true
+    name: fs-0a3480c5b6e875f40
+
+networks:
+  main:
+    external: true
+    name: sg-0e517a963389109f0
+
+x-aws-cloudformation:
+  Resources:
+    AyomapiTCP80Listener:
+      Properties:
+        Certificates:
+          - "arn:aws:acm:us-east-1:854122388886:certificate/84a8d9a0-9964-48c7-85b3-cdf2dad07900"
+        Protocol: TLS
+        Port: 443
