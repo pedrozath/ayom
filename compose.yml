@@ -25,8 +25,8 @@ services:
     deploy:
       x-aws-autoscaling:
         min: 0
-        max: 2
-        cpu: 90
+        max: 5
+        cpu: 80
 
     depends_on:
       - redis
